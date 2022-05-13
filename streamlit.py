@@ -1,4 +1,5 @@
 # PROJET PYTHON 
+from tarfile import LENGTH_LINK
 from turtle import clear
 import streamlit as st
 import numpy as np
@@ -264,4 +265,5 @@ if moyenne_mobile_3 :
     left_column.plotly_chart(fig_1, use_container_width=True)
     right_column.plotly_chart(fig_2, use_container_width=True)
 
- 
+st.write('je vous remerci de votre attention')
+st.balloons()
