@@ -2,10 +2,11 @@
 from tarfile import LENGTH_LINK
 from turtle import clear
 from PIL import Image
+from pyrsistent import b
 from libs.lib import get_date
 from libs.ratio import sharpe_ratio
 from libs.ratio import sortino_ratio
-
+from libs.ratio import max_drawdown
 import streamlit as st
 import datetime as dt
 import numpy as np
@@ -27,9 +28,6 @@ st.title("📊 Python Dashboard")
 # Ajout d'une image au bord
 #image = Image.open('Image.jpg')
 st.image("https://www.pexiweb.be/wp-content/uploads/2020/08/Custom-Software-Development.jpg", use_column_width=True)
-
-
-
 
 # Create data
 liste = ['AAPL','MSFT','BNP.PA']
@@ -283,100 +281,106 @@ if moyenne_mobile_3 :
 
 
 # Récupération et Initialisation pour traitement des données 
-### Create data
+# Create data
+start = dt.datetime(2013, 1, 1)
+end = dt.datetime(2022, 1, 1)
+
 tickers = ['AAPL','MSFT','BNP.PA']
+actions =[]
+data = web.DataReader(tickers,
+                        'yahoo', start, end)['Adj Close']
 
-# On créé une liste contenant les données des entreprises que l'on aura choisit de faire l'étude
+st.write(data)
 
-# on crée une fonction qui nous permet de recuperer les données que nous voulions utliser
-# ici dans notre cas il s'agit des observations 'Close'
-    ### la fonction utliser est celle stockée dans la library Get_date
-    ### on fait appelle à la fonction pour récuperer les données 
-
-#*********************************************************
-
-# testing data bnp
-BNP = get_date('BNP.PA',2008,2022)
-Apple = get_date('AAPL',2008,2022)
-microsoft = get_date('MSFT',2008,2022)
-
-Apple['Close BNP'] = BNP['Adj Close']
-Apple['Close microsoft'] = microsoft['Adj Close']
-
-if st.checkbox('Voir données financières avant tri'):
-    st.write(' Récupération des données brutes avant tri et traitements de données')
-    st.write(Apple)
-
-
-
-bnp = get_date('BNP.PA',2008,2022)
-Apple = get_date('AAPL',2008,2022)
-microsoft = get_date('MSFT',2008,2022)
-# Affichage des données graces à une checkbox
-Apple['Close BNP'] = bnp['Adj Close']
-Apple['Close microsoft'] = microsoft['Adj Close']
-Apple = Apple.drop(['Open','High', 'Volume', 'Low', 'Close'], axis=1)
-#st.write(Apple) 
-
-if st.sidebar.checkbox('Récupération des données des 3 entreprises entreprises pour traitement : cas général'):
-    st.write(' Récupération des données brutes après tri et traitements de données')
-    st.write(Apple)
-#********************************************
 cols = st.columns(2)
 
 # Creation du grphique
-fig4 = px.line(Apple,x="Date" ,y=['Adj Close','Close BNP','Close microsoft'],) # met le nom de la colonne date ici dans X='
+
+fig4 = px.line(data, y=tickers,) 
 cols[0].plotly_chart(fig4, use_container_width=True)
 
-# Calcule de la moyenne 
-tickers = ['AAPL','MSFT','BNP.PA']
+# Ccalcule de la moyenne et ajout d'une colonne Portefeuille pour mieux voir l'évoulution des cours d'action en fonction du portefeuille
+df = data.pct_change().dropna()
+df['Portefeuiile'] = df.mean(axis=1) # 20% apple, ... , 20% Bnp Paris_bas
+df_1  = (df + 1).cumprod()
 
-bnp = get_date('BNP.PA',2013,2022)
-apple = get_date('AAPL',2013,2022)
-microsoft = get_date('MSFT',2013,2022)
-apple['Close BNP'] = bnp['Adj Close']
-apple['Close microsoft'] = microsoft['Adj Close']
-df = apple.drop(['Open','High', 'Low', 'Volume','Close'], axis=1)
-#st.write(df)
-
-df['Moyenne'] = df.mean(axis=1) # 20% apple, ... , 20% Bnp Paris_bas
-print(df)
-df_1 = df.copy()
-
-if st.checkbox('Voir données financières des 3 entreprises'):
-    st.write(df_1)
-
-#********************************************
-df_1.reset_index(inplace = True)
-df_1=df_1.drop(['index'],axis=1)
-cols_2 = st.columns(2)
-
-# Creation du grphique
-fig5 = px.line(df_1,x="Date" ,y=['Adj Close','Close BNP','Close microsoft','Moyenne'],) # met le nom de la colonne date ici dans X='
-cols_2[0].plotly_chart(fig5, use_container_width=False)
+# Affichage des données
+st.write(df_1)
+# Affichage du graphique associé
+cols = st.columns(2)
+fig5 = px.line(df_1, y=tickers.append(['Portefeuiile']))
+cols[0].plotly_chart(fig5, use_container_width=True)
 
 #################################### Calcul Ratio de sharpe ######################################################"
 # On fait appelle à la fonction permettant de calculer le ratio de sharpes
-def sharpe_ratio(return_series, N, rf):
-    mean = return_series.mean() * N - rf
-    sigma = return_series.std() * np.sqrt(N)
-    return mean / sigma
 
-df_2 = df.copy()
-df_2 = df_2.set_index("Date")
-print(df_2)
-
-
-N = 255 #255 trading days in a year
-rf = 0.01 #1% risk free rate
-sharpes = df_2.apply(sharpe_ratio, args=(N,rf,),axis=0)
-
-data  = {'Sharpes': [i for i in sharpes]}
-sharpes = pd.DataFrame(data=data)
+N = 255 
+rf = 0.01 
+sharpes = df_1.apply(sharpe_ratio, args=(N,rf),axis=0)
 
 Ratio_1 = st.sidebar.checkbox('voir le Ratio de Sharpes ')
 if Ratio_1:
-    st.write(sharpes["Sharpes"])  
-    st.bar_chart(sharpes)
-#fig6 = px.line(sharpes,x="Date" ,y=['Adj Close','Close BNP','Close microsoft','Moyenne'],) # met le nom de la colonne date ici dans X='
-#cols_2[0].plotly_chart(fig6, use_container_width=False)
+    st.write(sharpes) 
+    st.text('le ratio de sharpes des 3 entreprises, ' ) 
+    st.bar_chart(sharpes)  
+
+#################################### Calcul Ratio de Sortino ######################################################"
+# Calcul du Ratio de Sortino
+# Ce ratio ne prend en compte les variables nuisibles contrairement au ratio de sharpe qii prend en comptr tous les observations
+# on créé une fonction permettant le calcul de ce ratio 
+#on fait appelle à cette fonction dans notre programme 
+    
+N = 255 #255 trading days in a year
+rf = 0.01 #1% risk free rate
+
+sortinos = df.apply(sortino_ratio, args=(N,rf,),axis=0)
+
+Ratio_2 = st.sidebar.checkbox('voir le Ratio de Sortinos ')
+if Ratio_2:
+    st.write(sortinos) 
+    st.text('le ratio de sortinos des 3 entreprises, ' ) 
+    st.bar_chart(sortinos)
+
+############### Calcule ratio de calmar ########################
+
+max_drawdowns = df.apply(max_drawdown,axis=0)
+if st.checkbox('La perte successive'):
+    st.write('max_drawdowns')
+    st.write(max_drawdowns)
+    st.write('la perte maximale: permet de déterminer la perte successive maximale ')
+    st.write('cet indicateur permet également de savoir si notre système est rentable ou pas.')
+    st.write('permet d’obtenir une synthèse de votre performance et de la qualité de votre stratégie en bourse')
+    st.bar_chart(max_drawdowns)
+# Ratio Calmar : donne le ratio entre le Risque/Rendement
+calmars = df.mean()*255/abs(max_drawdowns)
+
+Ratio_3 = st.sidebar.checkbox('voir le Ratio du Rapport Calmaire ')
+if Ratio_3:
+    st.write(' Ratio de Calmar permet de calculer le ratio entre le Rsique et le Rendement ')
+    st.write(calmars) 
+    st.write(' il semble que Microsoft soit le plus performant selon ce ratio') 
+    st.bar_chart(calmars)
+
+# Création d'un DataFrame permettant de regrouper tous les ratios calculés. 
+
+if st.checkbox('Création d un DataFrame permettant de regrouper tous les ratios calculés'):
+    st.write('Regroupement des données calculées séparement') 
+
+btstats = pd.DataFrame()
+btstats['sortino'] = sortinos
+btstats['sharpe'] = sharpes
+btstats['maxdd'] = max_drawdowns
+btstats['calmar'] = calmars
+
+Ratio_4 = st.sidebar.checkbox('Traçage de la trame de données sous forme de table')
+if Ratio_4:
+    st.write(btstats) 
+# Creation du grphique
+fig6 = plt.table(cellText=np.round(btstats.values,2), colLabels=btstats.columns,
+          rowLabels=btstats.index,rowLoc='center',cellLoc='center',loc='top',
+          colWidths=[0.25]*len(btstats.columns))
+if st.checkbox('Constat Global'):
+    st.write('Au vue de notre étude, Microsoft est la seule entreprise qui a les ratios les plus rentables, les indices les plus significatifs  ')
+if st.checkbox('Fin du Projet'):
+    st.balloons()
+    #st.video("https://giphy.com/gifs/the-end-hcpVSCSwDcKju", format="vide/mp4")

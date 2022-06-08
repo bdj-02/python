@@ -27,3 +27,11 @@ def sortino_ratio(series, N,rf):
 #sortinos.plot.bar()
 #plt.ylabel('Sortino Ratio')
 #st.sidebar.checkbox(sortinos)
+# Calcul du Ratio de Calmar
+###
+def max_drawdown(return_series):
+    comp_ret = (return_series+1).cumprod()
+    peak = comp_ret.expanding(min_periods=1).max()
+    dd = (comp_ret/peak)-1
+    return dd.min()
+# Création de la focntion 
